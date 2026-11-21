@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Age-Gated Agent Purchasing — agents need ID too</title>
+<style>
+  :root { --ok: #0a7d4a; --bad: #b3261e; --ink: #1c1c1c; --muted: #5f6368; --line: #dadce0; --card: #fff; --bg: #f6f7f9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: #14213d; color: #fff; padding: 20px 16px; }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; opacity: .85; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  .banner { border: 1px solid #f0b429; background: #fff8e1; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: 14px; }
+  .banner b { color: #7a5c00; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 8px; font-size: 18px; }
+  .card p { margin: 6px 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .twins { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .twins { grid-template-columns: 1fr; } }
+  .twin { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .twin h3 { margin: 0 0 6px; font-size: 15px; }
+  .twin code { font-size: 12px; word-break: break-all; }
+  .verdict { font-weight: 700; font-size: 15px; margin-top: 8px; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.bad { color: var(--bad); }
+  button { background: #14213d; color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 15px; cursor: pointer; margin: 4px 8px 4px 0; }
+  button.secondary { background: #fff; color: #14213d; border: 1px solid #14213d; }
+  button:disabled { opacity: .5; cursor: default; }
+  .proofs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .proofs { grid-template-columns: 1fr 1fr; } }
+  .proof { border: 1px solid var(--line); border-radius: 8px; padding: 12px; text-align: center; }
+  .proof .mark { font-size: 26px; line-height: 1; }
+  .proof .label { font-size: 13px; margin-top: 6px; }
+  .proof.pass { border-color: var(--ok); }
+  .proof.fail { border-color: var(--bad); }
+  .proof .mark.ok { color: var(--ok); }
+  .proof .mark.bad { color: var(--bad); }
+  #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; background: #111; color: #d7f5d7; border-radius: 8px; padding: 12px; min-height: 80px; }
+  .refusal { border: 1px solid var(--bad); background: #fdecea; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  .confirm { border: 1px solid var(--ok); background: #e6f4ea; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  footer { max-width: 960px; margin: 0 auto; padding: 0 16px 32px; font-size: 13px; color: var(--muted); }
+  footer code { font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Age-Gated Agent Purchasing</h1>
+  <p>Agents need ID too. An agent buys a bottle of wine for you — but only after the shop checks its badge and a proof that you are 18+, without seeing who you are.</p>
+</header>
+<main>
+  <div class="banner" id="modeBanner">Loading shop…</div>
+
+  <section class="card">
+    <h2>The twin test — the badge is the difference</h2>
+    <p class="muted">Two identical agents, same code, same request, same balance. One is registered and carries the Verified by Concordium badge. The other is not. Both checks run live against the Agent Registry.</p>
+    <div class="twins">
+      <div class="twin" id="twinA">
+        <h3>Agent A — badged</h3>
+        <p class="muted">Testnet token 1300, Active. <code id="addrA">…</code></p>
+        <p class="verdict" id="verdictA">Not checked yet.</p>
+        <p class="muted" id="detailA"></p>
+      </div>
+      <div class="twin" id="twinB">
+        <h3>Agent B — unbadged</h3>
+        <p class="muted">Testnet token 11, Revoked. <code id="addrB">…</code></p>
+        <p class="verdict" id="verdictB">Not checked yet.</p>
+        <p class="muted" id="detailB"></p>
+      </div>
+    </div>
+    <p><button id="runTwin">Run the twin test</button></p>
+  </section>
+
+  <section class="card">
+    <h2>Three proofs, zero personal data</h2>
+    <div class="proofs">
+      <div class="proof" id="proofBadge"><div class="mark">–</div><div class="label">Badge<br>Verified by Concordium</div></div>
+      <div class="proof" id="proofAge"><div class="mark">–</div><div class="label">Age 18+<br>Zero-knowledge proof</div></div>
+      <div class="proof" id="proofPay"><div class="mark">–</div><div class="label">Payment<br>x402, fee sponsored</div></div>
+      <div class="proof" id="proofData"><div class="mark">✓</div><div class="label">Personal data seen<br><b>none</b></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>The shop</h2>
+    <p><b id="itemName">Bottle of wine (2021)</b> — <span id="itemPrice">5 CCD</span></p>
+    <p class="muted">Age-restricted. The buyer must prove they are 18 or older. The merchant never sees a name, a birth date, or an ID document.</p>
+    <p>
+      <button id="buyBtn">Buy with my agent</button>
+      <button id="replayAgeBtn" class="secondary">Replay: age declined</button>
+      <button id="replayBadgeBtn" class="secondary">Replay: unbadged agent</button>
+    </p>
+    <div id="ageBox" style="display:none">
+      <p><b>Age proof needed.</b> The shop asks for one fact only: are you 18 or older?</p>
+      <p>
+        <button id="walletBtn">Approve in my wallet</button>
+        <button id="demoAgeBtn" class="secondary">Simulate approval (demo)</button>
+        <button id="demoDeclineBtn" class="secondary">Simulate decline (demo)</button>
+      </p>
+      <p class="muted">Wallet approval uses the Concordium browser wallet and the statement from this merchant. It needs the extension and the shop served over HTTP. The demo buttons simulate the tap so the flow can be tested without a wallet.</p>
+    </div>
+    <div id="outcome"></div>
+  </section>
+
+  <section class="card">
+    <h2>What happened</h2>
+    <div id="log">Shop ready. Run the twin test, or buy the wine.</div>
+  </section>
+</main>
+<footer id="footer">Verified facts load with the shop.</footer>
+
+<script>
+const AGENT_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8788' : '';
+let config = null;
+let currentOrder = null;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent += '\n' + msg;
+  el.scrollTop = el.scrollHeight;
+}
+function setProof(id, state) {
+  const el = document.getElementById(id);
+  const mark = el.querySelector('.mark');
+  el.classList.remove('pass', 'fail');
+  if (state === 'pass') { el.classList.add('pass'); mark.textContent = '✓'; mark.className = 'mark ok'; }
+  else if (state === 'fail') { el.classList.add('fail'); mark.textContent = '✗'; mark.className = 'mark bad'; }
+  else { mark.textContent = '–'; mark.className = 'mark'; }
+}
+function resetProofs() { setProof('proofBadge'); setProof('proofAge'); setProof('proofPay'); }
+function showOutcome(html) { document.getElementById('outcome').innerHTML = html; }
+
+async function loadConfig() {
+  const res = await fetch('/api/config');
+  config = await res.json();
+  document.getElementById('addrA').textContent = config.twinTest.badged;
+  document.getElementById('addrB').textContent = config.twinTest.unbadged;
+  document.getElementById('itemName').textContent = config.item.name;
+  document.getElementById('itemPrice').textContent = (Number(config.item.priceMicroCcd) / 1e6) + ' CCD';
+  document.getElementById('modeBanner').innerHTML = config.demoMode
+    ? '<b>DEMO MODE.</b> The badge check is live. The age proof and the payment are simulated, so the whole flow runs without a wallet. No real CCD moves.'
+    : '<b>LIVE MODE.</b> Real age proof and real x402 payment on Concordium testnet.';
+  document.getElementById('footer').innerHTML =
+    'Network: Concordium testnet (' + config.chainId + '). Agent Registry CIS-8004 index ' + config.cis8004.index +
+    ', CIS-8 index ' + config.cis8.index + '. Explorer: <code>' + config.explorer + '</code>. ' +
+    'Testnet identities are self-attested, so the demo proves the flow, not a real person\'s age.';
+}
+
+async function runTwinTest() {
+  log('Twin test: checking both badges live…');
+  const res = await fetch('/api/twin-test', { method: 'POST' });
+  const r = await res.json();
+  const a = document.getElementById('verdictA');
+  const b = document.getElementById('verdictB');
+  a.textContent = r.badged.valid ? '✓ SERVED — badge valid' : '✗ REFUSED — badge invalid';
+  a.className = 'verdict ' + (r.badged.valid ? 'ok' : 'bad');
+  b.textContent = r.unbadged.valid ? '✓ SERVED — badge valid' : '✗ REFUSED — badge invalid';
+  b.className = 'verdict ' + (r.unbadged.valid ? 'ok' : 'bad');
+  document.getElementById('detailA').textContent = r.badged.valid
+    ? 'On-chain: ' + (r.badged.status || '') + '. Card hash matches, badge present.'
+    : (r.badged.issues[0] || 'Badge check failed.');
+  document.getElementById('detailB').textContent = r.unbadged.valid
+    ? 'On-chain: ' + (r.unbadged.status || '') + '.'
+    : (r.unbadged.issues[0] || 'Badge check failed.');
+  log('Twin test: split = ' + r.split + ' (badged served, unbadged refused).');
+}
+
+async function createOrder(agentTokenAddress) {
+  const res = await fetch('/api/orders', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentTokenAddress }),
+  });
+  return res.json();
+}
+
+async function proveAgeDemo(orderId, demoResult) {
+  const ch = await (await fetch('/api/age/challenge?address=' + encodeURIComponent(config.twinTest.badged))).json();
+  const res = await fetch('/api/age/prove', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, challenge: ch.challenge, presentation: { demoResult } }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+async function proveAgeWallet(orderId) {
+  // Documented browser-wallet path (same calls as the official
+  // simpleAgeVerification BeerStore example). The statement comes from
+  // this merchant, so the wallet proves exactly what the shop asked for.
+  const helpers = await import('https://cdn.jsdelivr.net/npm/@concordium/browser-wallet-api-helpers@2.4.0/+esm');
+  const provider = await helpers.detectConcordiumProvider();
+  const accounts = await provider.requestAccounts();
+  const address = accounts[0];
+  const ch = await (await fetch('/api/age/challenge?address=' + encodeURIComponent(address))).json();
+  const st = await (await fetch('/api/age/statement')).json();
+  const presentation = await provider.requestVerifiablePresentation(ch.challenge, st.statement);
+  const res = await fetch('/api/age/prove', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, challenge: ch.challenge, presentation }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+async function payWithAgent(orderId) {
+  if (!AGENT_URL) throw new Error('Agent service URL is not configured for this host. Run the agent service on localhost:8788.');
+  const res = await fetch(AGENT_URL + '/buy', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+async function runBuyFlow(agentTokenAddress, demoAge) {
+  resetProofs();
+  showOutcome('');
+  document.getElementById('ageBox').style.display = 'none';
+  log('Order: agent ' + agentTokenAddress.slice(0, 12) + '… asks to buy the wine.');
+  const order = await createOrder(agentTokenAddress);
+  currentOrder = order;
+  if (order.stage === 'badge-refused') {
+    setProof('proofBadge', 'fail');
+    log('Refused at the badge gate: ' + (order.refusalReason || 'badge invalid'));
+    showOutcome('<div class="refusal"><b>Sale refused.</b> ' + (order.refusalReason || 'The agent badge check failed.') + '</div>');
+    return;
+  }
+  setProof('proofBadge', 'pass');
+  log('Badge gate passed. Age proof needed.');
+  document.getElementById('ageBox').style.display = 'block';
+
+  let proved;
+  if (demoAge) {
+    proved = await proveAgeDemo(order.id, demoAge);
+  } else {
+    return; // waiting for the buyer's wallet tap / demo button
+  }
+  await afterAgeProof(proved);
+}
+
+async function afterAgeProof(proved) {
+  document.getElementById('ageBox').style.display = 'none';
+  if (proved.status !== 200) {
+    setProof('proofAge', 'fail');
+    const reason = proved.body.error || 'Age proof failed.';
+    log('Refused at the age gate: ' + reason);
+    showOutcome('<div class="refusal"><b>Sale refused.</b> ' + reason + '</div>');
+    return;
+  }
+  setProof('proofAge', 'pass');
+  log('Age proof passed. Asking the agent to pay…');
+  try {
+    const paid = await payWithAgent(currentOrder.id);
+    if (!paid.body.ok) {
+      setProof('proofPay', 'fail');
+      log('Refused at payment: ' + (paid.body.reason || 'payment failed'));
+      showOutcome('<div class="refusal"><b>Sale refused.</b> ' + (paid.body.reason || 'Payment failed.') + '</div>');
+      return;
+    }
+    setProof('proofPay', 'pass');
+    const tx = paid.body.order.transaction || '';
+    const txLine = tx.startsWith('demo:')
+      ? 'Demo receipt <code>' + tx + '</code> (not on chain).'
+      : 'Transaction <a href="' + config.explorer + '/transaction/' + tx + '" target="_blank" rel="noopener">' + tx + '</a>';
+    log('Sale confirmed. Transaction: ' + tx);
+    showOutcome('<div class="confirm"><b>Sale confirmed.</b> The wine is yours. ' + txLine + '</div>');
+  } catch (err) {
+    setProof('proofPay', 'fail');
+    log('Agent service error: ' + err.message);
+    showOutcome('<div class="refusal"><b>Could not reach the agent service.</b> Start it first: in the agent folder, run <code>npm run build && node dist/index.js</code> (port 8788).</div>');
+  }
+}
+
+document.getElementById('runTwin').addEventListener('click', runTwinTest);
+document.getElementById('buyBtn').addEventListener('click', async () => {
+  const addr = config.ourAgentTokenAddress || config.twinTest.badged;
+  await runBuyFlow(addr, null); // stops at the age step, waits for the buyer's tap
+});
+document.getElementById('replayAgeBtn').addEventListener('click', async () => {
+  const addr = config.ourAgentTokenAddress || config.twinTest.badged;
+  await runBuyFlow(addr, 'failed');
+});
+document.getElementById('replayBadgeBtn').addEventListener('click', async () => {
+  await runBuyFlow(config.twinTest.unbadged, 'verified');
+});
+document.getElementById('demoAgeBtn').addEventListener('click', async () => {
+  if (!currentOrder) return;
+  await afterAgeProof(await proveAgeDemo(currentOrder.id, 'verified'));
+});
+document.getElementById('demoDeclineBtn').addEventListener('click', async () => {
+  if (!currentOrder) return;
+  await afterAgeProof(await proveAgeDemo(currentOrder.id, 'failed'));
+});
+document.getElementById('walletBtn').addEventListener('click', async () => {
+  if (!currentOrder) return;
+  try {
+    await afterAgeProof(await proveAgeWallet(currentOrder.id));
+  } catch (err) {
+    log('Wallet approval failed: ' + err.message);
+    showOutcome('<div class="refusal"><b>Wallet approval did not work.</b> ' + err.message + ' Use the demo buttons instead, or install the Concordium Wallet for Web extension.</div>');
+  }
+});
+
+loadConfig().catch((err) => {
+  document.getElementById('modeBanner').textContent = 'Could not reach the merchant backend. Start it first: in the merchant folder, run npm run build && npm start (port 8787). ' + err.message;
+});
+</script>
+</body>
+</html>
